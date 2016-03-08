@@ -1,0 +1,1002 @@
+<modification>
+	<name>PreOrder by iSenseLabs</name>
+	<version>1.1</version>	
+	<code>isense_preorder</code>
+	<link>http://isenselabs.com</link>
+	<author>iSenseLabs</author>
+
+
+  <file name="admin/controller/catalog/product.php">   	
+    <operation>
+			<search position="before"><![CDATA[$this->load->model('setting/store');]]></search>
+			<add><![CDATA[
+						
+						 //Pre-Order start
+                        
+						$this->data['language_id'] = $this->config->get('config_language_id');
+
+                        if (isset($this->request->post['preorder'])) {
+                            $this->data['data']['preorder'] = $this->request->post['preorder'];
+                        } elseif (isset($this->request->get['product_id'])) {
+                        $this->data['data']['preorder'] = $this->model_catalog_product->getProductPreorder($this->request->get['product_id']);
+                        } else {
+                            $this->data['data']['preorder'] = array();
+                        } 
+ 
+                        //Pre-Order end
+						]]></add>
+		</operation>
+    
+		<operation>
+			<search position="before"><![CDATA[$this->template = 'catalog/product_form.tpl';]]></search>
+			<add><![CDATA[
+				//Pre-Order start
+                  $this->load->model('setting/setting');
+
+                  $settings = $this->model_setting_setting->getSetting('preorder', $store_id=0);
+                  $settings = (isset($settings['preorder'])) ? $settings['preorder'] : array(); 
+
+                  if (isset($settings['Enabled']) && $settings['Enabled']=='yes') {
+                      $enabled_stock_status = array();
+                      foreach($this->data['stock_statuses'] as $stock_status) {
+                          if(isset($settings[$stock_status['stock_status_id']])) {
+                              $this->data['enabled_stock_status'][] = $stock_status['stock_status_id'];
+                          }
+                      }
+                  }
+			//Pre-Order end
+		]]></add>
+		</operation>
+   </file>
+
+  	<file name="admin/controller/sale/order.php">
+	    <operation>
+            <search position="before"><![CDATA[$this->data['order_products'][] = array(	]]></search>
+            <add><![CDATA[
+        		if(isset($product['preorder_id'])) {
+					$preorder = true;
+				} else {
+					$preorder = false;
+				}
+        ]]></add>
+        </operation>
+    
+     	<operation>
+            <search position="after"><![CDATA[$this->data['order_products'][] = array(	]]></search>
+            <add><![CDATA[
+        		'preorder'      => $pre_order,
+        ]]></add>
+        </operation>
+    
+    	<operation>
+            <search position="after"><![CDATA[foreach ($results as $result) {]]></search>
+            <add><![CDATA[
+        		if(isset($result['preorder_id'])) {
+					$preorder = true;
+				} else {
+					$preorder = false;
+				}
+        ]]></add>
+        </operation>
+ 
+        <operation>
+            <search position="before"><![CDATA['order_id'      => $result['order_id'],]]></search>
+            <add><![CDATA[
+ 				'preorder'      => $preorder,
+        ]]></add>
+        </operation>
+		
+			<operation> 
+		<search position="after"> <![CDATA[$this->data['order_products'] = array();]]> </search>
+		<add><![CDATA[$this->load->model('module/preorder'); ]]> </add>
+	</operation>
+	
+	<operation>
+		<search position="before"> <![CDATA[$this->data['order_products'][] = array(]]> </search>
+		<add><![CDATA[$preorder = $this->model_module_preorder->GetPreorderedProduct($order_product['product_id']);
+		 if(isset($preorder)) {		   
+            $pre_order = true;
+           } else {
+            $pre_order = false;
+           }
+		   ]]></add>
+	</operation>	
+	
+	<operation>
+		<search position="before"><![CDATA[$this->data['products'][] = array(]]></search>
+		<add> <![CDATA[
+			$this->load->model('module/preorder');
+			$preorder = $this->model_module_preorder->GetPreorderedProduct($product['product_id']);
+			 if(isset($preorder)) {		   
+				$pre_order = true;
+			   } else {
+				$pre_order = false;
+			   }
+			   ]]>
+		 </add>
+	</operation>
+	
+		<operation>
+			<search position="after"><![CDATA[$this->data['products'][] = array(]]></search>
+			<add><![CDATA['preorder'        => $pre_order,		
+     	 ]]></add>
+    	</operation>
+	</file>
+	
+	<file name="admin/model/catalog/product.php">
+		<operation>
+            <search position="after"><![CDATA[public function editProduct($product_id, $data) {]]></search>
+            <add><![CDATA[
+        
+                $preorder = $this->config->get('preorder');
+ 
+                if(isset($preorder['Enabled']) && $preorder['Enabled'] == 'yes' && $data['preorder_enabled'] == 'yes') {
+ 
+                   $this->db->query("DELETE FROM " . DB_PREFIX . "preorder_product WHERE product_id = '" . (int)$product_id . "'");
+                    
+					foreach ($data['preorder']['preorder_note'] as $language_id => $preorder_note) { 
+					
+                       $this->db->query("INSERT INTO " . DB_PREFIX . "preorder_product SET product_id = '" . (int)$product_id . "', language_id = '" . (int)$language_id . "', preorder_note = '" . $this->db->escape($preorder_note) . "', preorder_date = '" . $this->db->escape($data['preorder']['preorder_date']) . "'");
+                    }
+                }
+        ]]></add>
+        </operation>
+ 
+        <operation>
+            <search position="after"><![CDATA[$product_id = $this->db->getLastId();]]></search>
+            <add><![CDATA[
+ 
+                $preorder = $this->config->get('preorder');
+ 
+                if(isset($preorder['Enabled']) && $preorder['Enabled'] == 'yes' && $data['preorder_enabled'] == 'yes') {
+                    foreach ($data['preorder']['preorder_note'] as $language_id => $preorder_note) {
+                        $this->db->query("INSERT INTO " . DB_PREFIX . "preorder_product SET product_id = '" . (int)$product_id . "', language_id = '" . (int)$language_id . "', preorder_note = '" . $this->db->escape($preorder_note) . "', preorder_date = '" . $this->db->escape($data['preorder']['preorder_date']) . "'");
+                    }
+                }
+        ]]></add>
+        </operation>
+      
+      	<operation>
+			<search position="before"><![CDATA[public function getProductDescriptions($product_id) {]]></search>
+			<add><![CDATA[
+			    public function getProductPreorder($product_id) {
+                  $product_preorder_data = array();
+
+                  $query = $this->db->query("SELECT * FROM " . DB_PREFIX . "preorder_product WHERE product_id = '" . (int)$product_id . "'");
+
+                  foreach ($query->rows as $result) {
+                      $product_preorder_data[$result['language_id']] = array(
+                          'preorder_note'      => $result['preorder_note'],
+                          'preorder_date'      => $result['preorder_date']
+                      );
+                  }
+
+                  return $product_preorder_data;
+              }
+				
+		]]></add>
+		</operation>        
+
+		<operation>
+			<search position="before" index="0"><![CDATA[$this->db->query("DELETE FROM " . DB_PREFIX . "product_discount WHERE product_id = '" . (int)$product_id . "'");]]></search>
+			<add><![CDATA[
+				if ($preorder['Enabled']=='yes') {
+				/*	$users = $this->model_module_preorder->viewcustomers();
+
+					foreach($users as $user) {
+						$preorder = false;
+						$matchCount = 0;
+						$user['selected_options'] = unserialize($user['selected_options']);
+						$userCount = count($user['selected_options']);
+
+						foreach ($user['selected_options'] as $user_options) {
+							if (isset($this->data['product_option'])) {
+								foreach ($this->data['product_option'] as $product_option) {
+									foreach($product_option['product_option_value']  as $updated_options) {
+										if((($updated_options['option_value_id'] == $user_options['option_value_id']) &&
+											($updated_options['product_option_value_id'] == $user_options['product_option_value_id']) &&
+											(($updated_options['quantity'] > 0))
+										 ))
+										{
+											$matchCount++;
+										}
+									}
+								}
+							}
+						}
+
+						if($matchCount == $userCount)
+							$this->model_module_preorder->sendEmailWhenAvailable($product_id);
+					} */
+				}
+		]]></add>
+		</operation>
+	</file>
+
+ <file name="admin/model/sale/order.php">
+		<operation>
+            <search position="replace"><![CDATA[$query = $this->db->query("SELECT * FROM " . DB_PREFIX . "order_product WHERE order_id = '" . (int)$order_id . "'");]]></search>
+            <add><![CDATA[
+        		$query = $this->db->query("SELECT *, op.product_id as product_id FROM " . DB_PREFIX . "order_product op LEFT JOIN " . DB_PREFIX . "preorder p ON (p.product_id = op.product_id AND p.order_id = op.order_id) WHERE op.order_id = '" . (int)$order_id . "'");
+        ]]></add>
+        </operation>
+    
+   		<operation>
+            <search position="replace"><![CDATA[$sql = "SELECT o.order_id, CONCAT(o.firstname, ' ', o.lastname) AS customer, (SELECT os.name FROM " . DB_PREFIX . "order_status os WHERE os.order_status_id = o.order_status_id AND os.language_id = '" . (int)$this->config->get('config_language_id') . "') AS status, o.total, o.currency_code, o.currency_value, o.date_added, o.date_modified FROM `" . DB_PREFIX . "order` o";]]></search>
+            <add><![CDATA[
+        		$preorder_query = $this->db->query("SHOW TABLES LIKE '" . DB_PREFIX . "preorder'");
+
+				if($preorder_query->num_rows) {
+					$join_query = " LEFT JOIN `" . DB_PREFIX . "preorder` p on (p.order_id= o.order_id)";
+					$select_query = "p.*, ";
+				} else {
+					$join_query = "";
+					$select_query = "";
+				}
+
+			$sql = "SELECT ".$select_query ."o.order_id, CONCAT(o.firstname, ' ', o.lastname) AS customer, (SELECT os.name FROM " . DB_PREFIX . "order_status os WHERE os.order_status_id = o.order_status_id AND os.language_id = '" . (int)$this->config->get('config_language_id') . "') AS status, o.shipping_code, o.total, o.currency_code, o.currency_value, o.date_added, o.date_modified FROM `" . DB_PREFIX . "order` o".$join_query;
+        ]]></add>
+        </operation>
+ 
+        <operation>
+            <search position="before"><![CDATA[if (isset($data['sort']) && in_array($data['sort'], $sort_data)) {]]></search>
+            <add><![CDATA[
+ 				$sql .= " GROUP BY o.order_id";
+        ]]></add>
+        </operation>
+		
+		<operation>
+			<search position="before"><![CDATA[$this->db->query("DELETE FROM " . DB_PREFIX . "customer_transaction WHERE order_id = '" . (int)$order_id . "'");]]></search>
+			<add><![CDATA[$this->db->query("DELETE FROM " . DB_PREFIX . "preorder WHERE order_id = '" . (int)$order_id . "'");]]></add>
+		</operation>
+	</file>  
+	
+	<file name="admin/view/template/catalog/product_form.tpl">
+		<operation>
+			<search position="after" offset="1"><![CDATA[<td><input type="text" name="quantity" value="<?php echo $quantity; ?>" size="2" /></td>]]></search>
+			<add><![CDATA[
+				<?php if($quantity <= 0 && isset($enabled_stock_status) && isset($stock_status_id) && (in_array($stock_status_id, $enabled_stock_status))) { ?>
+					<input type="hidden" name="preorder" value="yes" />
+				<?php } else { ?> 
+					<input type="hidden" name="preorder" value="no" />
+				<?php } ?>
+		]]></add>
+		</operation>
+      
+      	<operation>
+			<search position="before"><![CDATA[<?php echo $footer; ?>]]></search>
+			<add><![CDATA[
+<script>
+					$(document).ready(function() {
+                    var stock_status_array = <?php if(isset($enabled_stock_status)) { echo json_encode($enabled_stock_status); } else { echo 'null'; }; ?> ;
+					var quantity = $("input[name='quantity']").val(); 
+					
+					if(stock_status_array !== null) {
+                        var exists = $.inArray($("select[name='stock_status_id']").val(), stock_status_array);
+                        if(exists > -1 && quantity <= 0) {
+                            $('.pre_order_form').show();
+							$('#preorder_enabled').val('yes');
+                        } else {
+                            $('.pre_order_form').hide();
+							$('#preorder_enabled').val('no');
+                        }
+
+                        $("select[name='stock_status_id']").change(function() {
+							
+                            var exists = $.inArray($(this).val(), stock_status_array);
+                            var quantity = $("input[name='quantity']").val();
+							
+							if(exists > -1 && quantity <= 0) {
+                                $('.pre_order_form').fadeIn("slow");
+								$('#preorder_enabled').val('yes');
+                            } else {
+                                $('.pre_order_form').fadeOut("slow");
+								$('#preorder_enabled').val('no');
+                            }
+                        });
+
+						$("input[name='quantity']").change(function() { 
+                            var exists = $.inArray($("select[name='stock_status_id']").val(), stock_status_array);  
+							var quantity = $(this).val(); 
+							if(exists > -1 && quantity <= 0) { 
+                                $('.pre_order_form').fadeIn("slow");
+								$('#preorder_enabled').val('yes');
+                            } else {
+                                $('.pre_order_form').fadeOut("slow");
+								$('#preorder_enabled').val('no');
+                            }
+                        });
+
+					}
+                    });
+            </script>
+		]]></add>
+		</operation>
+      
+        <operation>
+			<search position="before" offset="1"><![CDATA[<td><?php echo $entry_shipping; ?></td>]]></search>
+			<add><![CDATA[
+				  <!-- Pre-Order settings start -->
+
+						<tr class="pre_order_form">	
+				  			<input type="hidden" id="preorder_enabled" name="preorder_enabled" value="no" />
+										
+							<td>
+								Pre-Order Note:
+								<br>
+								<span class="help">	The text to be displayed next to the pre-ordered products in the cart.</span>
+							</td>
+						<td>	
+											
+						<?php foreach ($languages as $language) : ?>
+                                 
+                                    <img src="view/image/flags/<?php echo $language['image']; ?>" title="<?php echo $language['name']; ?>" />
+									
+                                     <input type="text" name="preorder[preorder_note][<?php echo $language['language_id']; ?>]" value="<?php echo (!empty($data['preorder'][$language['language_id']]['preorder_note'])) ? $data['preorder'][$language['language_id']]['preorder_note'] : '' ?>" placeholder="Pre-Order Note" id="preorder[preorder_note][<?php echo $language['language_id']; ?>]" class="form-control" />
+                                 
+                                <?php endforeach; ?>
+						</td>
+					</tr>
+					<tr class="pre_order_form">   
+						<td>
+							Pre-Order Date:
+							<br>
+							<span class="help">The date on which the product will be available.</span>													
+						</td>                    	
+						<td> 
+							<input type="text" name="preorder[preorder_date]" value="<?php echo (!empty($data['preorder'][$language_id]['preorder_date'])) ? $data['preorder'][$language_id]['preorder_date'] : '' ?>" data-date-format="YYYY-MM-DD" class="form-control date" />
+						</td>
+					</tr>
+				
+				<!-- Pre-Order settings end -->
+		]]></add>
+		</operation>
+	</file> 
+	
+	  
+    <file name="admin/view/template/sale/order_list.tpl">
+		<operation>
+            <search position="replace"><![CDATA[<td class="right"><?php echo $order['order_id']; ?></td>]]></search>
+            <add><![CDATA[
+        		<td class="text-right"><span style="float:left; color:#f24545;"> <?php if(($order['preorder'] == true)) { echo "[Pre-Order]"; } ?></span><?php echo $order['order_id']; ?></td>
+        ]]></add>
+        </operation>
+	</file>
+  
+  <!-- Added by Veso -->
+  
+  <file name="admin/view/template/sale/order_info.tpl">
+  	<operation>
+		<search position="after"><![CDATA[<td class="left"><a href="<?php echo $product['href']; ?>"><?php echo $product['name']; ?></a>]]></search>
+			<add><![CDATA[	
+ 				<?php if(isset($product['preorder']) && $product['preorder'] == 'true') { 
+						$note = "* [Pre-Order] "; ?>
+						<div style="color:red"><?php echo $note; ?></div>
+						<?php } ?>
+						]]></add>
+	</operation>  
+  </file>
+  
+  <!-- End Added by Veso -->
+  
+  <file name="admin/view/template/sale/order_form.tpl">
+    <operation>
+      <search position="replace"><![CDATA[html += '  <td class="left">' + product['name'] + '<br /><input type="hidden" name="order_product[' + product_row + '][order_product_id]" value="" /><input type="hidden" name="order_product[' + product_row + '][product_id]" value="' + product['product_id'] + '" /><input type="hidden" name="order_product[' + product_row + '][name]" value="' + product['name'] + '" />';]]></search>
+      <add>
+      <![CDATA[     
+          html += '  <td class="text-left">' + '  <span class="text-danger">' + preorder +'  </span>' + product['name'] + ' ' + (!product['stock'] ? '<span class="text-danger">***</span>' : '') + '<br />';
+      ]]>
+      </add>
+    </operation>
+
+    <operation>
+      <search position="after"><![CDATA[product = json['order_product'][i];]]></search>
+      <add><![CDATA[
+      	if(product['preorder'] == true) {
+						$preorder = "[Pre-Order]";
+					} else {
+						$preorder = "";
+					}
+      ]]></add>
+    </operation>
+	
+	<operation>
+		<search position="before"><![CDATA[<?php foreach ($order_product['option'] as $option) { ?>]]></search>
+		<add><![CDATA[
+			<?php if(isset($order_product['preorder']) && $order_product['preorder'] == 'true') { 
+						$note = "* [Pre-Order] "; ?>
+						<div style="color:red"><?php echo $note; ?></div>
+						<?php } ?>
+		]]></add>
+	</operation>
+  </file>
+
+	<file name="catalog/controller/checkout/cart.php">
+		<operation>
+			<search position="after"><![CDATA[$product_info = $this->model_catalog_product->getProduct($product_id);]]></search>
+			<add><![CDATA[
+				 $this->load->model('setting/setting');
+
+					  $preorder_settings = $this->model_setting_setting->getSetting('preorder', $store_id=0);
+					  $preorder_settings = (isset($preorder_settings['preorder'])) ? $preorder_settings['preorder'] : array(); 
+	
+					  $this->data['stock_statuses'] = array();
+					  $stock_statuses =   $this->db->query("SELECT * FROM " . DB_PREFIX . "stock_status");
+					  $this->data['stock_statuses'] = $stock_statuses->rows;
+										
+					  if (isset($preorder_settings['Enabled']) && $preorder_settings['Enabled']=='yes') {
+						  $enabled_stock_status = array();
+						  foreach($this->data['stock_statuses'] as $stock_status) {  
+							  if(isset($preorder_settings[$stock_status['stock_status_id']])) {
+								  $this->data['enabled_stock_status'][] = $stock_status['stock_status_id'];
+							  }
+						  }
+					  }
+					 
+					if ($product_info['quantity'] <=0 && isset($this->data['enabled_stock_status']) && in_array($product_info['stock_status_id'], $this->data['enabled_stock_status'])) {
+						$json['PO'] = true;
+					} 
+			]]></add>
+		</operation>
+
+		<operation>
+			<search position="replace"><![CDATA[if (!$json) {]]></search>
+			<add><![CDATA[
+				if (!$json || (isset($json['PO']) && $json['PO'] == true && empty($json['error']) && !isset($json['error']))) {
+
+				if(!isset($json['PO'])) {
+					$json['PO'] =false;
+				}
+			]]></add>
+		</operation>    
+      
+      	<operation>
+			<search position="replace"><![CDATA[$this->cart->add($this->request->post['product_id'], $quantity, $option, $profile_id);]]></search>
+			<add><![CDATA[
+				$this->cart->add($this->request->post['product_id'], $quantity, $option, $profile_id, $json['PO']);
+			]]></add>
+		</operation>    
+      
+        <operation>
+			<search position="before"><![CDATA[$this->data['products'][] = array(]]></search>
+			<add><![CDATA[
+			
+				if ($product['pre_order']) {
+					$pre_order = true;
+				} else {
+					$pre_order = false;
+				}
+			]]></add>
+		</operation>   
+      
+        <operation>
+			<search position="before"><![CDATA['href'                => $this->url->link('product/product', 'product_id=' . $product['product_id']),]]></search>
+			<add><![CDATA[
+					'preorder_date'  => $product['preorder_date'],
+					'preorder_note'  => $product['preorder_note'],
+					'pre_order' => $pre_order,
+			]]></add>
+		</operation>
+      
+        
+      	<operation>
+			<search position="replace"><![CDATA[$json['success'] = sprintf($this->language->get('text_success'), $this->url->link('product/product', 'product_id=' . $this->request->post['product_id']), $product_info['name'], $this->url->link('checkout/cart'));]]></search>
+			<add><![CDATA[
+				if($json['PO'] == true) {
+					$this->load->language('module/preorder');
+					$json['success'] = sprintf($this->language->get('preorder_Success'), $this->url->link('product/product', 'product_id=' . $this->request->post['product_id']), $product_info['name'], $this->url->link('checkout/cart'));
+				} else {
+					$json['success'] = sprintf($this->language->get('text_success'), $this->url->link('product/product', 'product_id=' . $this->request->post['product_id']), $product_info['name'], $this->url->link('checkout/cart'));
+				};
+			]]></add>
+		</operation>    
+          
+      
+		<operation>
+			<search position="after"><![CDATA[$product_options = $this->model_catalog_product->getProductOptions($this->request->post['product_id']);]]></search>
+			<add><![CDATA[$product_option_values = array();]]></add>
+		</operation>
+
+		<operation>
+			<search position="after" offset="1"><![CDATA[$json['error']['option'][$product_option['product_option_id']] = sprintf($this->language->get('error_required'), $product_option['name']);]]></search>
+			<add><![CDATA[
+				if(isset($option) && !empty($option) && (empty($json['error']) && !isset($json['error']))) {
+					switch($product_option['type']) {
+						case 'radio' : 
+							$temp_option_values = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option_value as a JOIN " . DB_PREFIX . "option_value_description as b ON a.option_value_id = b.option_value_id WHERE product_option_value_id = '" . (int)$option[$product_option['product_option_id']] . "' AND product_option_id = '" . (int)$product_option["product_option_id"] . "'");
+							$product_option_values[] = $temp_option_values->row;
+							break;
+
+						case 'checkbox' :
+							foreach($option[$product_option['product_option_id']] as $checkbox_id) {
+								$temp_option_values = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option_value as a JOIN " . DB_PREFIX . "option_value_description as b ON a.option_value_id = b.option_value_id WHERE product_option_value_id = '" . (int)$checkbox_id . "' AND product_option_id = '" . (int)$product_option["product_option_id"] . "'");
+								$product_option_values[] = $temp_option_values->row;
+								
+							}
+							break;
+						case 'select' :
+							$temp_option_values = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option_value as a JOIN " . DB_PREFIX . "option_value_description as b ON a.option_value_id = b.option_value_id WHERE product_option_value_id = '" . (int)$option[$product_option['product_option_id']] . "' AND product_option_id = '" . (int)$product_option["product_option_id"] . "'");
+							$product_option_values[] = $temp_option_values->row;
+							break;
+					}
+				}
+			]]></add>
+		</operation>
+
+		<operation>
+			<search position="before"><![CDATA[if (isset($this->request->post['profile_id'])) {]]></search>
+			<add><![CDATA[
+				if(empty($json['error']) && !isset($json['error']) && isset($product_option_values)) {
+					foreach($product_option_values as $product_selected_options) {
+						if($product_options && isset($product_selected_options['quantity']) && ($product_selected_options['quantity'] == 0) && isset($this->data['enabled_stock_status']) &&  in_array($product_info['stock_status_id'], $this->data['enabled_stock_status'])) {
+							$json['PO'] = true;
+							}
+					}
+					$this->session->data['selected_options'] =  $product_option_values;
+				}
+			]]></add>
+		</operation>
+		
+		<operation>
+			<search position="before"><![CDATA[public function add() {]]></search>
+			<add><![CDATA[
+				public function checkQuantityPO() {
+					$json = array();
+
+					if (isset($this->request->get['product_id'])) {
+						$product_id = (int)$this->request->get['product_id'];
+					} else {
+						$product_id = 0;
+					}
+
+					$this->load->model('catalog/product');
+
+					$product_info = $this->model_catalog_product->getProduct($product_id);
+					
+					$this->load->model('setting/setting');
+
+					  $preorder_settings = $this->model_setting_setting->getSetting('preorder', $store_id=0);
+					  $preorder_settings = (isset($preorder_settings['preorder'])) ? $preorder_settings['preorder'] : array(); 
+	
+					  $this->data['stock_statuses'] = array();
+					  $stock_statuses =   $this->db->query("SELECT * FROM " . DB_PREFIX . "stock_status");
+					  $this->data['stock_statuses'] = $stock_statuses->rows;
+										
+					  if (isset($preorder_settings['Enabled']) && $preorder_settings['Enabled']=='yes') {
+						  $enabled_stock_status = array();
+						  foreach($this->data['stock_statuses'] as $stock_status) {  
+							  if(isset($preorder_settings[$stock_status['stock_status_id']])) {
+								  $this->data['enabled_stock_status'][] = $stock_status['stock_status_id'];
+							  }
+						  }
+					  }
+					 
+					if ($product_info['quantity'] <=0 && isset($this->data['enabled_stock_status']) && in_array($product_info['stock_status_id'], $this->data['enabled_stock_status'])) {
+						$json['PO'] = true;
+					} 
+
+					if ($product_info) {
+						if (isset($this->request->post['quantity'])) {
+							$quantity = (int)$this->request->post['quantity'];
+						} else {
+							$quantity = 1;
+						}
+
+						if (isset($this->request->post['option'])) {
+							$option = array_filter($this->request->post['option']);
+						} else {
+							$option = array();
+						}
+
+						$product_options = $this->model_catalog_product->getProductOptions($this->request->get['product_id']);
+						$product_option_values = array();
+
+						foreach ($product_options as $product_option) {
+							if ($product_option['required'] && empty($option[$product_option['product_option_id']])) {
+								$json['error']['option'][$product_option['product_option_id']] = sprintf($this->language->get('error_required'), $product_option['name']);
+							}
+
+							if(isset($option) && !empty($option) && (empty($json['error']) && !isset($json['error']))) {
+								switch($product_option['type']) {
+									case 'radio' : 
+										$temp_option_values = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option_value as a JOIN " . DB_PREFIX . "option_value_description as b ON a.option_value_id = b.option_value_id WHERE product_option_value_id = '" . (int)$option[$product_option['product_option_id']] . "' AND product_option_id = '" . (int)$product_option["product_option_id"] . "'");
+										$product_option_values[] = $temp_option_values->row;
+										break;
+
+									case 'checkbox' :
+										foreach($option[$product_option['product_option_id']] as $checkbox_id) {
+											$temp_option_values = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option_value as a JOIN " . DB_PREFIX . "option_value_description as b ON a.option_value_id = b.option_value_id WHERE product_option_value_id = '" . (int)$checkbox_id . "' AND product_option_id = '" . (int)$product_option["product_option_id"] . "'");
+											$product_option_values[] = $temp_option_values->row;
+											
+										}
+										break;
+									case 'select' :
+										$temp_option_values = $this->db->query("SELECT * FROM " . DB_PREFIX . "product_option_value as a JOIN " . DB_PREFIX . "option_value_description as b ON a.option_value_id = b.option_value_id WHERE product_option_value_id = '" . (int)$option[$product_option['product_option_id']] . "' AND product_option_id = '" . (int)$product_option["product_option_id"] . "'");
+										$product_option_values[] = $temp_option_values->row;
+										break;
+								}
+							}
+						
+						}
+
+						if(empty($json['error']) && !isset($json['error'])) {
+							foreach($product_option_values as $product_selected_options) {
+								if($product_options && isset($product_selected_options['quantity']) && ($product_selected_options['quantity'] == 0) && in_array($product_info['stock_status_id'], $this->data['enabled_stock_status'])) {
+									$json['PO'] = true;
+									}
+							}
+							$this->session->data['selected_options'] =  $product_option_values;
+						}
+					}
+
+					$this->response->addHeader('Content-Type: application/json');
+					$this->response->setOutput(json_encode($json));
+				}
+			]]></add>
+		</operation>
+	</file>
+		
+	<file name="catalog/controller/checkout/confirm.php">
+		<operation>
+			<search position="before"><![CDATA['product_id'          => $product['product_id'],]]></search> 
+			<add><![CDATA[
+				'pre_order'     => $pre_order,
+				'preorder_date'     => $preorder_date,
+				'preorder_note'     => $preorder_note,
+						]]></add>
+		</operation>  
+		
+		<operation>
+			<search position="before"><![CDATA[$this->data['products'][] = array(]]></search>
+			<add><![CDATA[
+			
+				if(isset($product['pre_order']) && ($product['pre_order'] == true)) {
+                   $pre_order = true;
+                 } else {
+                    $pre_order = false; 
+                 }
+
+				if(isset($product['preorder_date'])) {
+					$preorder_date = $product['preorder_date'];
+				} else {
+					$preorder_date = '';
+				}
+				
+				if(isset($product['preorder_note'])) {
+					$preorder_note = $product['preorder_note'];
+				} else {
+					$preorder_note = '';
+				}
+				
+						]]></add>
+		</operation>
+      
+      	<operation>
+			<search position="after"><![CDATA[$product_data[] = array(]]></search>
+			<add><![CDATA[
+				'pre_order'  => $pre_order,
+						]]></add> 
+		</operation>
+    
+    <operation>
+			<search position="before"><![CDATA[$product_data[] = array(]]></search>
+			<add><![CDATA[
+				if(isset($product['pre_order']) && ($product['pre_order'] == true)) {
+						 $pre_order = true;
+					} else {
+						  $pre_order = false;
+					}
+						]]></add>
+		</operation>      
+	</file>
+	
+  <file name="catalog/controller/checkout/success.php">
+		<operation>
+			<search position="after"><![CDATA[if (isset($this->session->data['order_id'])) {]]></search>
+			<add>
+			<![CDATA[ 			
+				$this->load->model('module/preorder');
+				$this->load->model('checkout/order');
+				$PO = $this->model_checkout_order->getOrder($this->session->data['order_id']);
+				if(isset($PO['preorder']) && ($PO['preorder'] == true) ) {
+					$this->model_module_preorder->sendPreOrderEmail($PO['order_id'], $PO['preorder']);
+				}			
+				]]>
+			</add>
+		</operation>
+	</file>
+	
+	<file name="catalog/controller/product/product.php">
+		<operation>
+			<search position="after"><![CDATA[$this->data['points'] = $product_info['points'];]]></search>
+			<add><![CDATA[
+				$this->data['quantity'] = $product_info['quantity'];
+				$this->data['stock_status_id'] = $product_info['stock_status_id'];
+						]]></add>
+		</operation>
+		
+		<operation>
+			<search position="after"><![CDATA['rating'     => $rating,]]></search>
+			<add><![CDATA[
+				'quantity'  => $result['quantity'],
+				'stock_status_id' => $result['stock_status_id'],
+						]]></add>
+		</operation>
+		
+      
+      	<operation>
+			<search position="before"><![CDATA[$this->data['heading_title'] = $product_info['name'];]]></search>
+			<add><![CDATA[
+				$this->data['quantity'] = $product_info['quantity'];
+				$this->data['stock_status_id'] = $product_info['stock_status_id'];
+
+				$this->data['preorder']  = $this->config->get('preorder');
+								
+				$this->load->model('module/preorder');
+               
+			    $this->data['preorderinfo']= $this->model_module_preorder->GetPreorderedProduct($this->request->get['product_id']);
+               	$this->data['preorder_available_on'] = $this->language->get('preorder_available_on');
+ 
+                $this->load->model('setting/setting');
+ 
+                $preorder_settings = $this->model_setting_setting->getSetting('preorder', $store_id=0);
+                $preorder_settings = (isset($preorder_settings['preorder'])) ? $preorder_settings['preorder'] : array(); 
+								
+				$this->data['preorder_date_note'] = $preorder_settings['DateNote'][$this->config->get('config_language_id')];
+ 
+                $this->data['stock_statuses'] = array();
+                $stock_statuses =   $this->db->query("SELECT * FROM " . DB_PREFIX . "stock_status");
+                $this->data['stock_statuses'] = $stock_statuses->rows;
+ 
+                $enabled_stock_status = array();
+                    foreach($this->data['stock_statuses'] as $stock_status) {  
+                       if(isset($preorder_settings[$stock_status['stock_status_id']])) {
+                        $this->data['enabled_stock_status'][] = $stock_status['stock_status_id'];
+                       }
+                    }
+ 
+                if($this->data['quantity'] <= 0 && isset($this->data['enabled_stock_status']) && in_array($this->data['stock_status_id'], $this->data['enabled_stock_status'])) {
+                   $this->data['preorder_product'] = true;
+                } else {
+                   $this->data['preorder_product'] = false;
+                }
+
+						]]></add>
+		</operation>
+
+      <operation>
+			<search position="before"><![CDATA[foreach ($this->model_catalog_product->getProductOptions($this->request->get['product_id']) as $option) {]]></search>
+			<add><![CDATA[$this->data['stock_statuses'] = array();
+					  $stock_statuses =   $this->db->query("SELECT * FROM " . DB_PREFIX . "stock_status");
+					  $this->data['stock_statuses'] = $stock_statuses->rows;
+										
+					  if (isset($this->data['preorder']['Enabled']) && $this->data['preorder']['Enabled']=='yes') {
+						  $enabled_stock_status = array();
+						  foreach($this->data['stock_statuses'] as $stock_status) {  
+							  if(isset($this->data['preorder'][$stock_status['stock_status_id']])) {
+								  $this->data['enabled_stock_status'][] = $stock_status['stock_status_id'];
+							  }
+						  }
+					  }]]></add>
+		</operation>
+      
+		<operation>
+			<search position="replace"><![CDATA[if (!$option_value['subtract'] || ($option_value['quantity'] > 0)) {]]></search>
+			<add><![CDATA[if (!$option_value['subtract'] || ($option_value['quantity'] > 0) || (!empty($this->data['preorder']['Enabled']) && $this->data['preorder']['Enabled']=='yes' && in_array($product_info['stock_status_id'], $this->data['enabled_stock_status']))) {]]></add>
+		</operation>
+
+		<operation>
+			<search position="before"><![CDATA['price_prefix'            => $option_value['price_prefix']]]></search>
+			<add><![CDATA['quantity'				  => $option_value['quantity'],
+]]></add>
+		</operation>
+	</file>
+    
+  <file name="catalog/model/checkout/order.php">
+		<operation>
+			<search position="after"><![CDATA[foreach ($data['products'] as $product) {]]></search>
+			<add><![CDATA[
+					if(isset($product['pre_order']) && $product['pre_order'] == 'true') {
+						$this->db->query("INSERT INTO " . DB_PREFIX . "preorder SET order_id = '" . (int)$order_id . "',product_id = '" . (int)$product['product_id']  . "',  store_id = '" . (int)$data['store_id'] . "', language_id = '" . (int)$data['language_id'] . "', date_created = NOW()");
+					}]]></add>
+		</operation>
+		
+		<operation>
+			<search position="before"><![CDATA['date_added'              => $order_query->row['date_added']]]></search>
+			<add><![CDATA[
+					'preorder'              => $preorder,
+					]]></add>
+		</operation>  
+		
+		<operation>
+			<search position="before"><![CDATA[return array(]]></search>
+			<add><![CDATA[
+			if(isset($order_query->row['preorder_id'])) {
+				$preorder=true;
+			} else {
+				$preorder=false;
+			}
+					]]></add>
+		</operation>
+		
+		<operation>
+			<search position="replace"><![CDATA[$order_query = $this->db->query("SELECT *, (SELECT os.name FROM `" . DB_PREFIX . "order_status` os WHERE os.order_status_id = o.order_status_id AND os.language_id = o.language_id) AS order_status FROM `" . DB_PREFIX . "order` o WHERE o.order_id = '" . (int)$order_id . "'");]]></search>
+			<add><![CDATA[
+			$order_query = $this->db->query("SELECT o.*, po.preorder_id, (SELECT os.name FROM `" . DB_PREFIX . "order_status` os WHERE os.order_status_id = o.order_status_id AND os.language_id = o.language_id) AS order_status FROM `" . DB_PREFIX . "order` o LEFT JOIN `" . DB_PREFIX . "preorder` as po on o.order_id = po.order_id WHERE o.order_id = '" . (int)$order_id . "'");
+					]]></add>
+		</operation>   		   
+		
+		<operation>
+			<search position="replace"><![CDATA[$order_product_query = $this->db->query("SELECT * FROM " . DB_PREFIX . "order_product WHERE order_id = '" . (int)$order_id . "'");]]></search>
+			<add><![CDATA[
+				$order_product_query = $this->db->query("SELECT *, op.product_id as product_id FROM " . DB_PREFIX . "order_product op LEFT JOIN " . DB_PREFIX . "preorder_product pp ON (pp.product_id = op.product_id) LEFT JOIN " . DB_PREFIX . "preorder p ON (p.order_id = op.order_id AND pp.product_id = p.product_id)  WHERE op.order_id = '" . (int)$order_id . "'");
+					]]></add>
+		</operation>  	
+				
+		<operation>
+			<search position="before"><![CDATA[$template->data['products'][] = array(]]></search>
+			<add><![CDATA[
+			   if(isset($product['preorder_id'])) {
+					$preorder = 'true';
+					if(isset($product['preorder_note'])) {
+						$preorder_note = $product['preorder_note'];
+					} else {
+						$preorder_note = '';
+					}
+				} else {
+					$preorder = 'false';
+					$preorder_note = '';
+				}
+				 
+					]]></add>
+		</operation>
+		
+		<operation>
+			<search position="after"><![CDATA[$template->data['products'][] = array(]]></search>
+			<add><![CDATA[
+			 		'preorder'     => $preorder,
+					'preorder_note'     => $preorder_note,
+				
+					]]></add>
+		</operation>
+	</file>
+	
+	  <file name="catalog/model/catalog/product.php">
+		<operation>
+			<search position="after"><![CDATA['stock_status'     => $query->row['stock_status'],]]></search>
+			<add><![CDATA[
+				'stock_status_id'     => $query->row['stock_status_id'],
+						]]></add>
+		</operation>
+	</file>
+	
+    <file name="catalog/view/theme/*/template/checkout/confirm.tpl">
+		<operation>
+			<search position="before"><![CDATA[<?php foreach ($product['option'] as $option) { ?>]]></search>
+			<add><![CDATA[
+				 
+				 <?php if(isset($product['pre_order']) && $product['pre_order'] == "true") { 
+                  		if(isset($product['preorder_note'])) { ?>
+                       <div class="text-danger" style="color: red;"> * [Pre-Order] <?php echo $product['preorder_note'] ?></div>
+                  <?php }
+				  		if (!isset($product['preorder_note'])) { ?>
+						<div class="text-danger" style="color: red;"> * [Pre-Order] </div> <?php }} ?>
+						]]></add>
+		</operation>
+	</file>
+	
+ 	<file name="catalog/view/theme/*/template/checkout/cart.tpl">
+		<operation>
+			<search position="after"><![CDATA[<td class="name"><a href="<?php echo $product['href']; ?>"><?php echo $product['name']; ?></a>]]></search>
+			<add><![CDATA[
+				
+				 <?php if(isset($product['pre_order']) && $product['pre_order'] == "true") { 
+                  		if(isset($product['preorder_note'])) { ?>
+                       <div class="text-danger" style="color: red;"> * [Pre-Order] <?php echo $product['preorder_note'] ?></div>
+                  <?php }
+				  		if (!isset($product['preorder_note'])) { ?>
+						<div class="text-danger" style="color: red;"> * [Pre-Order] </div> <?php }} ?>
+						]]></add>
+		</operation>
+		
+		<operation>
+           <search><![CDATA[<?php if (!$product['stock']) { ?>]]></search>
+            <add position="replace"><![CDATA[
+                 <?php if (!$product['stock']  && (!isset($product['pre_order']) || !$product['pre_order'])) { ?>
+                        ]]></add>
+        </operation> 
+	</file>
+		
+    <file name="catalog/view/theme/*/template/mail/order.tpl">
+		<operation>
+			<search position="after"><![CDATA[ &nbsp;<small> - <?php echo $option['name']; ?>: <?php echo $option['value']; ?></small>]]></search>
+			<add><![CDATA[
+				<?php } ?>
+				
+ 				<?php if(isset($product['preorder']) && $product['preorder'] == 'true') { 
+						if(!empty($product['preorder_note'])) { 
+							$note = "* [Pre-Order] ".$product['preorder_note'];
+						} else { 
+							$note = "* [Pre-Order] "; 
+						} ?>
+						<div style="color:red"><?php echo $note; ?></div>
+						]]></add>
+		</operation>
+	</file>
+   
+   
+    <file name="catalog/view/theme/*/template/product/product.tpl">	
+		<operation>
+			<search position="before"><![CDATA[<?php if ($thumb || $images) { ?>]]></search>
+			<add><![CDATA[
+			<?php if(($preorder['Enabled'] == 'yes') && isset($preorderinfo) && ($preorder['Enabled'] == "yes") && isset($preorder_product) && $preorder_product == true && isset($preorder_date_note) && !empty($preorder_date_note)) { ?>
+  <div class="alert alert-info" style="text-align: center; font-size: medium; background-color: #19BDF0; padding: 10px; margin: 10px 0; border-radius: 5px; color: #FFF; "><i class="fa fa-info-circle"></i> <?php $find = array("{preorder_date}","{preorder_note}"); $replace = array($preorderinfo['preorder_date'], $preorderinfo['preorder_note']); echo str_replace($find, $replace, $preorder_date_note) ?></div>
+   <?php } ?>
+			]]></add>
+		</operation>
+	</file>
+
+  
+	<file name="system/library/cart.php">
+    	<operation>
+			<search position="replace"><![CDATA[public function add($product_id, $qty = 1, $option, $profile_id = '') {]]></search>
+			<add><![CDATA[
+				public function add($product_id, $qty = 1, $option = array(), $profile_id = '', $pre_order = false) {
+						]]></add>
+		</operation>
+		
+    	<operation>
+			<search position="replace"><![CDATA[if (!$product['stock']) {]]></search>
+			<add><![CDATA[
+				 if (!$product['stock']  && (!isset($product['pre_order']) || !$product['pre_order'])) {
+						]]></add>
+		</operation>
+    
+		<operation>
+			<search position="after"><![CDATA[$key = (int)$product_id . ':';]]></search>
+			<add><![CDATA[
+				if ($pre_order == true) {
+                    $product['pre_order'] = true;
+                }else 	{
+					$product['pre_order'] = false;
+				}
+						]]></add>
+		</operation>
+
+		<operation>
+			<search position="after"><![CDATA[if ($product_query->num_rows) {]]></search>
+			<add><![CDATA[if (isset($product_query->row['preorder_product_id'])) {$pre_order = true;} else { $pre_order=false;}]]></add>
+		</operation>
+
+		<operation>
+			<search position="before"><![CDATA['profile_name'              => $profile_name,]]></search>
+			<add><![CDATA[
+				'preorder_note' => $product_query->row['preorder_note'],
+				'preorder_date' => $product_query->row['preorder_date'],
+				'pre_order'       => $pre_order,
+			]]></add>
+		</operation>
+    
+ 		<operation>
+			<search position="replace"><![CDATA[$product_query = $this->db->query("SELECT * FROM " . DB_PREFIX . "product p LEFT JOIN " . DB_PREFIX . "product_description pd ON (p.product_id = pd.product_id) WHERE p.product_id = '" . (int)$product_id . "' AND pd.language_id = '" . (int)$this->config->get('config_language_id') . "' AND p.date_available <= NOW() AND p.status = '1'");]]></search>
+			<add><![CDATA[
+				$product_query = $this->db->query("SELECT *, p.product_id as product_id, pd.language_id as language_id FROM " . DB_PREFIX . "product p LEFT JOIN " . DB_PREFIX . "product_description pd ON (p.product_id = pd.product_id) LEFT JOIN " . DB_PREFIX . "preorder_product pp ON (pd.product_id = pp.product_id) WHERE p.product_id = '" . (int)$product_id . "' AND pd.language_id = '" . (int)$this->config->get('config_language_id') . "' AND p.date_available <= NOW() AND p.status = '1'");
+			]]></add>
+		</operation>   
+	</file>
+
+
+  <!-- Add BCC im mail OpenCart mail function-->
+  <file name="system/library/mail.php">
+    <operation>
+
+      <search position="before"><![CDATA[$header .= 'Date: ' . date('D, d M Y H:i:s O') . $this->newline;]]></search>
+      <add><![CDATA[
+        if (!empty($this->bcc)) {
+          $header .= 'Bcc: ' . $this->bcc . $this->newline;
+        }
+      ]]></add>
+    </operation>
+  </file>
+
+</modification>
